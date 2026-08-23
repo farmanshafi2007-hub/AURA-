@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en" class="antialiased">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aura | Pure Sound</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        :root {
+            --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif;
+            --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            /* REVERSED THEME: Pure minimal light mode */
+            --bg-color: #ffffff;
+            --text-main: #1d1d1f;
+            --text-muted: #86868b;
+            --accent-red: #e30000;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: var(--font-display);
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            overscroll-behavior-y: none;
+        }
+
+        /* Subtle cinematic noise for texture on white */
+        .noise-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            pointer-events: none;
+            z-index: 9999;
+            opacity: 0.025;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+        }
+
+        ::-webkit-scrollbar { width: 0px; background: transparent; }
+
+        /* Typography */
+        .text-huge {
+            font-size: clamp(3.5rem, 14vw, 16rem);
+            font-weight: 700;
+            letter-spacing: -0.06em;
+            line-height: 0.8;
+            color: #f5f5f7; /* Very subtle light gray behind the product */
+        }
+        .tracking-tightest { letter-spacing: -0.04em; }
+        
+        .tech-accent {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--accent-red);
+            font-weight: 600;
+        }
+
+        /* Clean Glass Panel for Light Mode */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(40px);
+            -webkit-backdrop-filter: blur(40px);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.03);
+        }
+
+        /* Minimal Button */
+        .btn-premium {
+            background: #1d1d1f;
+            color: #ffffff;
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), background 0.3s;
+            border: none;
+        }
+        .btn-premium:hover {
+            transform: scale(1.02);
+            background: #000000;
+        }
+        .btn-secondary {
+            background: transparent;
+            color: #1d1d1f;
+            border: 1px solid #d2d2d7;
+            transition: all 0.3s;
+        }
+        .btn-secondary:hover {
+            border-color: #1d1d1f;
+            background: #f5f5f7;
+        }
+
+        .page-view {
+            display: none;
+            opacity: 0;
+            transform: translateY(15px);
+            transition: opacity 0.6s ease, transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .page-view.active { display: block; }
+        .page-view.visible { opacity: 1; transform: translateY(0); }
+
+        #page-loader {
+            position: fixed; inset: 0; background: var(--bg-color); z-index: 1000;
+            display: flex; align-items: center; justify-content: center;
+            transition: opacity 0.5s ease; pointer-events: none; opacity: 0;
+        }
+        #page-loader.active { opacity: 1; pointer-events: all; }
+
+        /* Scroll Animation Containers */
+        .sticky-container { height: 350vh; position: relative; }
+        .sticky-content {
+            position: sticky; top: 0; height: 100vh;
+            display: flex; align-items: center; justify-content: center;
+            overflow: hidden; perspective: 1000px;
+        }
+
+        /* Hardware acceleration for smooth frames */
+        .will-change-transform { 
+            will-change: transform, opacity; 
+            transform-style: preserve-3d;
+            backface-visibility: hidden;
+        }
+
+        /* Features Cards */
+        .cards-container { perspective: 2000px; }
+        .feature-card {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%); width: 100%;
+            transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+            opacity: 0; pointer-events: none;
+        }
+        .feature-card.active {
+            opacity: 1; pointer-events: auto;
+            transform: translate(-50%, -50%) scale(1) translateZ(0) rotateX(0deg);
+        }
+        .feature-card.prev {
+            opacity: 0; filter: blur(10px);
+            transform: translate(-50%, -80%) scale(0.9) translateZ(-100px) rotateX(5deg);
+        }
+        .feature-card.next {
+            opacity: 0;
+            transform: translate(-50%, -20%) scale(1.05) translateZ(100px) rotateX(-5deg);
+        }
+
+        /* Navigation Links */
+        .nav-link { position: relative; color: var(--text-muted); transition: color 0.3s; }
+        .nav-link:hover, .nav-link.active { color: var(--text-main); }
+        .nav-link::after {
+            content: ''; position: absolute; bottom: -4px; left: 50%; transform: translateX(-50%) scaleX(0);
+            width: 100%; height: 1px; background: var(--text-main); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .nav-link.active::after { transform: translateX(-50%) scaleX(1); }
+
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(255,255,255,0.8); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            z-index: 99999; display: flex; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.4s ease;
+        }
+        .modal-overlay.open { opacity: 1; pointer-events: auto; }
+        .payment-modal {
+            background: #fff; width: 100%; max-width: 440px; padding: 3rem 2rem;
+            border-radius: 32px; box-shadow: 0 30px 60px rgba(0,0,0,0.1);
+            border: 1px solid rgba(0,0,0,0.05);
+            transform: translateY(20px) scale(0.95); transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .modal-overlay.open .payment-modal { transform: translateY(0) scale(1); }
+
+    </style>
+</head>
+<body>
+    
+    <div class="noise-overlay"></div>
+
+    <nav class="fixed top-0 w-full z-50 px-6 py-6 flex justify-between items-center pointer-events-none">
+        <div class="font-bold text-2xl tracking-tighter text-black pointer-events-auto cursor-pointer" onclick="navigate('home')">AURA</div>
+        
+        <div class="hidden md:flex gap-8 items-center pointer-events-auto text-sm font-medium tracking-wide">
+            <button class="nav-link active" data-target="home" onclick="navigate('home')">Overview</button>
+            <button class="nav-link" data-target="design" onclick="navigate('design')">Design</button>
+            <button class="nav-link" data-target="specs" onclick="navigate('specs')">Specs</button>
+        </div>
+
+        <div class="flex gap-4 items-center pointer-events-auto">
+            <div class="hidden sm:flex flex-col items-end leading-tight mr-2">
+                <span class="font-semibold text-black text-sm">₹4,150 <span class="text-xs text-gray-400 line-through font-normal">₹6,000</span></span>
+                <span class="text-[10px] text-red-600 font-bold uppercase tracking-wider">Oct 1 Launch</span>
+            </div>
+            <button class="btn-premium px-6 py-2.5 rounded-full text-sm font-semibold shadow-md" onclick="openPayment()">
+                Pre-book
+            </button>
+        </div>
+    </nav>
+
+    <div id="page-loader">
+        <div class="w-6 h-6 border-2 border-gray-200 border-t-black rounded-full animate-spin"></div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- PAGE: HOME (OVERVIEW)                      -->
+    <!-- ========================================== -->
+    <div id="page-home" class="page-view active visible">
+        
+        <section class="sticky-container" id="hero-trigger">
+            <div class="sticky-content">
+                
+                <div class="absolute inset-0 flex flex-col items-center justify-center text-center z-10 pointer-events-none">
+                    <h1 class="text-huge" id="hero-text-1">PURE</h1>
+                    <h1 class="text-huge" id="hero-text-2">SOUND</h1>
+                </div>
+
+                <!-- 3D Exploded Product Render - REVERSED FOR LIGHT MODE -->
+                <div class="relative z-20 will-change-transform flex items-center justify-center w-[300px] h-[400px]" id="hero-product">
+                    <svg viewBox="0 0 200 300" class="w-full h-full overflow-visible">
+                        <defs>
+                            <linearGradient id="metal-light" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#ffffff"/><stop offset="50%" stop-color="#d1d5db"/><stop offset="100%" stop-color="#9ca3af"/>
+                            </linearGradient>
+                            <linearGradient id="glass-light" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="rgba(255,255,255,0.8)"/><stop offset="100%" stop-color="rgba(255,255,255,0.3)"/>
+                            </linearGradient>
+                            <pattern id="carbon-light" width="4" height="4" patternUnits="userSpaceOnUse">
+                                <path d="M0 4L4 0M-1 1L1 -1M3 5L5 3" stroke="rgba(0,0,0,0.15)" stroke-width="0.5"/>
+                            </pattern>
+                        </defs>
+
+                        <g id="earbud-group">
+                            <!-- Shell -->
+                            <g id="part-shell">
+                                <path d="M 60 40 C 140 30, 160 90, 150 140 C 140 190, 100 280, 80 280 C 60 280, 50 180, 40 140 C 30 100, 20 50, 60 40 Z" 
+                                      fill="url(#glass-light)" stroke="rgba(0,0,0,0.1)" stroke-width="1" filter="drop-shadow(0 15px 25px rgba(0,0,0,0.15))"/>
+                            </g>
+
+                            <!-- Stem -->
+                            <g id="part-stem">
+                                <rect x="70" y="145" width="12" height="110" rx="6" fill="#f3f4f6" stroke="rgba(0,0,0,0.1)"/>
+                                <line x1="76" y1="150" x2="76" y2="245" stroke="rgba(0,0,0,0.1)" stroke-width="2"/>
+                                <rect x="68" y="260" width="16" height="4" rx="2" fill="url(#metal-light)"/>
+                            </g>
+                            
+                            <!-- Driver -->
+                            <g id="part-driver">
+                                <circle cx="95" cy="100" r="35" fill="url(#metal-light)" stroke="rgba(0,0,0,0.05)"/>
+                                <circle cx="95" cy="100" r="25" fill="url(#carbon-light)"/>
+                                <circle cx="95" cy="100" r="10" fill="#111" stroke="rgba(255,255,255,0.2)"/>
+                                <circle cx="120" cy="65" r="4" fill="var(--accent-red)"/>
+                            </g>
+
+                            <!-- Tip -->
+                            <g id="part-tip">
+                                <path d="M 50 100 C 10 90, -10 110, 10 130 C 30 150, 60 140, 50 100 Z" fill="rgba(240,240,240,0.9)" stroke="rgba(0,0,0,0.05)"/>
+                                <path d="M 40 105 C 15 98, -2 110, 15 125 C 30 140, 50 130, 40 105 Z" fill="#ffffff" stroke="rgba(0,0,0,0.1)"/>
+                            </g>
+                        </g>
+                    </svg>
+                </div>
+
+                <!-- Labels -->
+                <div class="absolute inset-0 pointer-events-none z-30 opacity-0 transition-opacity duration-300" id="exploded-labels">
+                    <div class="absolute top-[30%] left-[20%] text-left" id="label-tip">
+                        <p class="tech-accent">Acoustic Seal</p>
+                        <p class="text-black text-sm font-medium">Medical-grade silicone</p>
+                    </div>
+                    <div class="absolute top-[20%] right-[20%] text-right" id="label-driver">
+                        <p class="tech-accent">11mm Ceramic</p>
+                        <p class="text-black text-sm font-medium">Custom tuning</p>
+                    </div>
+                    <div class="absolute bottom-[25%] right-[30%] text-left" id="label-stem">
+                        <p class="tech-accent">H1 Processor</p>
+                        <p class="text-black text-sm font-medium">100k calculations/sec</p>
+                    </div>
+                </div>
+
+                <!-- Text Overlay -->
+                <div class="absolute bottom-12 left-1/2 -translate-x-1/2 text-center opacity-0 will-change-transform z-30 w-full px-6" id="hero-specs">
+                    <p class="tech-accent mb-3">Architecture Exposed</p>
+                    <h2 class="text-4xl md:text-6xl font-bold tracking-tightest text-black mb-4">Nothing to hide.</h2>
+                    <p class="text-gray-500 max-w-lg mx-auto text-lg">Engineered with absolute transparency. Experience audio exactly as the artist intended.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="min-h-screen bg-[#fafafa] relative flex items-center justify-center overflow-hidden py-24 px-6 border-y border-gray-200" id="features">
+            
+            <div class="w-full max-w-6xl z-10 grid lg:grid-cols-2 gap-16 items-center">
+                
+                <div class="order-2 lg:order-1 flex flex-col gap-10 text-left">
+                    <div>
+                        <h2 class="text-5xl md:text-7xl font-bold tracking-tightest mb-4">Pure focus.</h2>
+                        <p class="text-gray-500 text-xl leading-relaxed">Pro-level specifications wrapped in brutalist minimalism.</p>
+                    </div>
+                    
+                    <div class="flex flex-col gap-6 border-l border-gray-300 pl-8 relative">
+                        <div class="absolute left-[-1.5px] top-0 w-[3px] h-12 bg-black transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]" id="tab-indicator"></div>
+                        
+                        <button class="feature-tab text-left group" data-index="0">
+                            <span class="tech-accent group-hover:text-black transition-colors duration-300">01</span>
+                            <h3 class="text-3xl font-bold text-gray-400 group-hover:text-black transition-colors duration-300">Active Noise Cancelling</h3>
+                        </button>
+                        <button class="feature-tab text-left group" data-index="1">
+                            <span class="tech-accent group-hover:text-black transition-colors duration-300">02</span>
+                            <h3 class="text-3xl font-bold text-gray-400 group-hover:text-black transition-colors duration-300">Spatial Audio</h3>
+                        </button>
+                        <button class="feature-tab text-left group" data-index="2">
+                            <span class="tech-accent group-hover:text-black transition-colors duration-300">03</span>
+                            <h3 class="text-3xl font-bold text-gray-400 group-hover:text-black transition-colors duration-300">40-Hour Battery</h3>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="order-1 lg:order-2 h-[500px] lg:h-[600px] relative cards-container w-full max-w-md mx-auto lg:max-w-none">
+                    
+                    <div class="feature-card glass-panel rounded-[32px] p-10 h-full flex flex-col justify-between active" id="card-0">
+                        <div class="w-14 h-14 rounded-full border border-gray-200 bg-white flex items-center justify-center mb-4 shadow-sm">
+                            <svg class="w-6 h-6 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="tech-accent mb-3">Up to 50dB Reduction</p>
+                            <h4 class="text-4xl font-bold mb-4 tracking-tightest">Absolute Silence.</h4>
+                            <p class="text-gray-500 text-lg">Six microphones calculate and cancel external frequencies 100,000 times per second.</p>
+                        </div>
+                        <div class="flex items-end gap-1.5 h-16 mt-8 opacity-40">
+                            <div class="w-full bg-black rounded-t-sm animate-[pulse_1s_ease-in-out_infinite]" style="height: 40%"></div>
+                            <div class="w-full bg-black rounded-t-sm animate-[pulse_1.2s_ease-in-out_infinite]" style="height: 100%"></div>
+                            <div class="w-full bg-black rounded-t-sm animate-[pulse_0.8s_ease-in-out_infinite]" style="height: 60%"></div>
+                            <div class="w-full bg-black rounded-t-sm animate-[pulse_1.5s_ease-in-out_infinite]" style="height: 80%"></div>
+                            <div class="w-full bg-black rounded-t-sm animate-[pulse_1.1s_ease-in-out_infinite]" style="height: 30%"></div>
+                        </div>
+                    </div>
+
+                    <div class="feature-card glass-panel rounded-[32px] p-10 h-full flex flex-col justify-between next" id="card-1">
+                        <div class="w-14 h-14 rounded-full border border-gray-200 bg-white flex items-center justify-center mb-4 shadow-sm">
+                            <svg class="w-6 h-6 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="tech-accent mb-3">Dynamic Head Tracking</p>
+                            <h4 class="text-4xl font-bold mb-4 tracking-tightest">You are the center.</h4>
+                            <p class="text-gray-500 text-lg">Gyroscopes map your position, placing instruments in a physical 3D space around you.</p>
+                        </div>
+                        <div class="relative h-24 mt-8 flex items-center justify-center opacity-40">
+                            <div class="absolute w-16 h-16 border border-black rounded-full animate-[spin_4s_linear_infinite]"></div>
+                            <div class="absolute w-24 h-24 border border-dashed border-gray-500 rounded-full animate-[spin_6s_linear_infinite_reverse]"></div>
+                            <div class="absolute w-32 h-32 border border-gray-300 rounded-full animate-[spin_8s_linear_infinite]"></div>
+                            <div class="w-2 h-2 bg-black rounded-full"></div>
+                        </div>
+                    </div>
+
+                    <div class="feature-card glass-panel rounded-[32px] p-10 h-full flex flex-col justify-between next" id="card-2">
+                        <div class="w-14 h-14 rounded-full border border-gray-200 bg-white flex items-center justify-center mb-4 shadow-sm">
+                            <svg class="w-6 h-6 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="tech-accent mb-3">Kinetic Charging</p>
+                            <h4 class="text-4xl font-bold mb-4 tracking-tightest">Relentless energy.</h4>
+                            <p class="text-gray-500 text-lg">40 hours total reserve. A 10-minute charge yields 5 hours of continuous playback.</p>
+                        </div>
+                        <div class="mt-8 flex flex-col gap-3">
+                            <div class="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
+                                <div class="h-full bg-black w-[100%] rounded-full"></div>
+                            </div>
+                            <div class="flex justify-between text-sm text-gray-500 font-mono">
+                                <span>0H</span>
+                                <span>Fast Charge</span>
+                                <span>40H</span>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+        <section class="min-h-[70vh] flex flex-col items-center justify-center relative overflow-hidden bg-white">
+            <div class="relative z-10 text-center px-6 w-full max-w-4xl">
+                <h2 class="text-5xl md:text-7xl font-bold tracking-tightest mb-4">Secure yours.</h2>
+                <p class="text-xl text-gray-500 mb-10">Pre-book today to guarantee delivery for the October 1st launch.</p>
+                
+                <div class="flex flex-col sm:flex-row items-center justify-center gap-8 mb-12">
+                    <div class="text-center">
+                        <p class="text-gray-400 line-through text-lg font-medium">₹6,000 Retail</p>
+                        <p class="text-5xl font-bold">₹4,150 <span class="text-lg font-normal text-gray-500">INR</span></p>
+                    </div>
+                    <div class="h-16 w-px bg-gray-200 hidden sm:block"></div>
+                    <div class="text-center">
+                        <p class="text-gray-400 line-through text-lg font-medium">$75 Retail</p>
+                        <p class="text-5xl font-bold">$50 <span class="text-lg font-normal text-gray-500">USD</span></p>
+                    </div>
+                </div>
+
+                <button class="btn-premium px-12 py-5 rounded-full text-lg font-bold shadow-xl" onclick="openPayment()">
+                    Pre-book for Oct 1
+                </button>
+                <p class="mt-6 text-sm text-gray-400">Secure payment via UPI or Cards.</p>
+            </div>
+        </section>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- PAGE: DESIGN                               -->
+    <!-- ========================================== -->
+    <div id="page-design" class="page-view pt-32 pb-24 px-6 min-h-screen bg-white">
+        <div class="max-w-5xl mx-auto">
+            <p class="tech-accent mb-4 text-center">Industrial Design</p>
+            <h1 class="text-5xl md:text-7xl font-bold tracking-tightest text-center mb-24">Form follows frequency.</h1>
+            
+            <div class="grid md:grid-cols-2 gap-16 items-center mb-32">
+                <div class="glass-panel bg-[#f9f9fb] rounded-3xl p-12 aspect-square flex items-center justify-center relative overflow-hidden border border-gray-100">
+                    <svg viewBox="0 0 100 100" class="w-3/4 h-3/4 drop-shadow-xl transform hover:scale-105 transition-transform duration-700">
+                        <circle cx="50" cy="50" r="40" fill="transparent" stroke="#d1d5db" stroke-width="2"/>
+                        <circle cx="50" cy="50" r="30" fill="rgba(255,255,255,0.8)" stroke="rgba(0,0,0,0.05)"/>
+                        <circle cx="50" cy="50" r="10" fill="var(--accent-red)"/>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-3xl font-bold mb-4">Ceramic Core</h3>
+                    <p class="text-gray-500 text-lg leading-relaxed">By utilizing a custom-fired ceramic driver, we eliminated the distortion inherent in plastic diaphragms. The result is a sound profile of absolute clarity, suspended within a transparent aerospace-grade polymer shell.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- PAGE: SPECS                                -->
+    <!-- ========================================== -->
+    <div id="page-specs" class="page-view pt-32 pb-24 px-6 min-h-screen bg-[#fafafa]">
+        <div class="max-w-4xl mx-auto">
+            <p class="tech-accent mb-4 text-center">Technical Specifications</p>
+            <h1 class="text-5xl md:text-7xl font-bold tracking-tightest text-center mb-24">The Data.</h1>
+            
+            <div class="space-y-2">
+                <div class="bg-white border border-gray-200 p-8 flex flex-col md:flex-row md:items-center justify-between rounded-t-2xl shadow-sm">
+                    <h4 class="text-xl font-bold w-1/3 mb-2 md:mb-0">Audio Technology</h4>
+                    <p class="text-gray-500 w-2/3 leading-relaxed">Custom 11mm Ceramic Driver<br>Active Noise Cancellation (up to 50dB)<br>Dynamic Spatial Audio</p>
+                </div>
+                <div class="bg-white border border-gray-200 p-8 flex flex-col md:flex-row md:items-center justify-between shadow-sm">
+                    <h4 class="text-xl font-bold w-1/3 mb-2 md:mb-0">Battery & Power</h4>
+                    <p class="text-gray-500 w-2/3 leading-relaxed">Up to 40 hours with charging case<br>10 min charge = 5 hours playback</p>
+                </div>
+                <div class="bg-white border border-gray-200 p-8 flex flex-col md:flex-row md:items-center justify-between rounded-b-2xl shadow-sm">
+                    <h4 class="text-xl font-bold w-1/3 mb-2 md:mb-0">Connectivity</h4>
+                    <p class="text-gray-500 w-2/3 leading-relaxed">Bluetooth 5.3<br>High-Res Audio Codec Support</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ========================================== -->
+    <!-- PAYMENT MODAL                              -->
+    <!-- ========================================== -->
+    <div class="modal-overlay" id="payment-modal-overlay">
+        <div class="payment-modal text-center">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-2xl font-bold tracking-tightest">Secure Pre-book</h3>
+                <button onclick="closePayment()" class="text-gray-400 hover:text-black transition-colors">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            
+            <div class="bg-[#f5f5f7] p-6 rounded-2xl mb-6 border border-gray-200">
+                <p class="text-sm text-gray-500 font-medium mb-1">Total Amount (Launch Offer)</p>
+                <p class="text-4xl font-bold text-black mb-4">₹4,150</p>
+                
+                <div class="bg-white p-4 rounded-xl border border-gray-200 inline-block mb-4 shadow-sm">
+                    <!-- Pure CSS minimal QR Code Representation -->
+                    <div class="grid grid-cols-5 gap-1 w-24 h-24 mx-auto opacity-80">
+                        <div class="bg-black col-span-2 row-span-2 rounded-sm"></div><div class="bg-black rounded-sm"></div><div class="bg-black col-span-2 row-span-2 rounded-sm"></div>
+                        <div class="bg-transparent rounded-sm"></div>
+                        <div class="bg-black col-span-2 row-span-2 rounded-sm"></div><div class="bg-black rounded-sm"></div><div class="bg-transparent col-span-2 rounded-sm"></div>
+                        <div class="bg-transparent rounded-sm"></div><div class="bg-black rounded-sm"></div>
+                        <div class="bg-black rounded-sm"></div><div class="bg-transparent rounded-sm"></div><div class="bg-black col-span-3 rounded-sm"></div>
+                    </div>
+                </div>
+                
+                <p class="text-xs text-gray-500">Scan QR or use UPI ID</p>
+                <p class="font-mono text-sm font-bold mt-1 tracking-wider text-black">9697430658@FAM</p>
+            </div>
+
+            <!-- This link forces a UPI intent on mobile devices -->
+            <a href="upi://pay?pa=9697430658@FAM&pn=Aura%20Prebook&am=4150&cu=INR&tn=Aura%20Earbuds%20Oct%201" 
+               class="btn-premium w-full block py-4 rounded-xl text-lg font-bold shadow-lg mb-3">
+                Pay via UPI App
+            </a>
+            <button onclick="closePayment()" class="btn-secondary w-full py-3 rounded-xl text-sm font-semibold">
+                Cancel
+            </button>
+        </div>
+    </div>
+
+
+    <script>
+        const loader = document.getElementById('page-loader');
+        const views = document.querySelectorAll('.page-view');
+        const navLinks = document.querySelectorAll('.nav-link');
+
+        window.navigate = function(pageId) {
+            loader.classList.add('active');
+            navLinks.forEach(link => {
+                if(link.dataset.target === pageId) link.classList.add('active');
+                else link.classList.remove('active');
+            });
+
+            setTimeout(() => {
+                views.forEach(v => v.classList.remove('active', 'visible'));
+                const targetView = document.getElementById(`page-${pageId}`);
+                targetView.classList.add('active');
+                window.scrollTo(0,0);
+                
+                setTimeout(() => {
+                    targetView.classList.add('visible');
+                    loader.classList.remove('active');
+                }, 50);
+            }, 400); 
+        };
+
+        const paymentModal = document.getElementById('payment-modal-overlay');
+        window.openPayment = () => { paymentModal.classList.add('open'); };
+        window.closePayment = () => { paymentModal.classList.remove('open'); };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            
+            const heroTrigger = document.getElementById('hero-trigger');
+            const product = document.getElementById('hero-product');
+            const text1 = document.getElementById('hero-text-1');
+            const text2 = document.getElementById('hero-text-2');
+            const specs = document.getElementById('hero-specs');
+            
+            const partShell = document.getElementById('part-shell');
+            const partStem = document.getElementById('part-stem');
+            const partDriver = document.getElementById('part-driver');
+            const partTip = document.getElementById('part-tip');
+            const explodedLabels = document.getElementById('exploded-labels');
+
+            let currentScroll = 0;
+            let targetScroll = 0;
+            const ease = 0.08; // Tightened for better accuracy & snap
+
+            function updateScroll() {
+                if(document.getElementById('page-home').classList.contains('active')) {
+                    targetScroll = window.scrollY;
+                    currentScroll += (targetScroll - currentScroll) * ease;
+                    
+                    const heroHeight = heroTrigger.offsetHeight - window.innerHeight;
+                    let rawProgress = heroHeight > 0 ? currentScroll / heroHeight : 0;
+                    let progress = Math.max(0, Math.min(1, rawProgress));
+
+                    // Master transforms with hardware acceleration
+                    const scale = 1 + (progress * 2.2);
+                    const translateY = progress * 150;
+                    const rotate = progress * 10;
+                    const opacity = 1 - Math.pow(progress, 3);
+                    
+                    product.style.transform = `translate3d(0, ${translateY}px, 0) scale(${scale}) rotate(${rotate}deg)`;
+                    product.style.opacity = opacity;
+
+                    // Explode parts
+                    let explodeProgress = Math.max(0, Math.min(1, (progress - 0.1) / 0.6));
+                    
+                    partShell.style.transform = `translate3d(${explodeProgress * 20}px, ${explodeProgress * -20}px, 0)`;
+                    partStem.style.transform = `translate3d(0, ${explodeProgress * 60}px, 0)`;
+                    partTip.style.transform = `translate3d(${explodeProgress * -40}px, ${explodeProgress * 10}px, 0)`;
+                    
+                    partDriver.style.transformOrigin = "95px 100px";
+                    partDriver.style.transform = `scale(${1 + (explodeProgress * 0.2)}) rotate(${explodeProgress * 90}deg)`;
+
+                    if(explodeProgress > 0.5) {
+                        explodedLabels.style.opacity = (explodeProgress - 0.5) * 2;
+                    } else {
+                        explodedLabels.style.opacity = 0;
+                    }
+
+                    // Background text moves
+                    text1.style.transform = `translate3d(0, ${progress * -400}px, 0)`;
+                    text2.style.transform = `translate3d(0, ${progress * 400}px, 0)`;
+                    text1.style.opacity = 1 - (progress * 1.5);
+                    text2.style.opacity = 1 - (progress * 1.5);
+
+                    if(progress > 0.4) {
+                        const specProgress = (progress - 0.4) / 0.6;
+                        specs.style.opacity = specProgress;
+                        specs.style.transform = `translate3d(-50%, ${30 - (specProgress * 30)}px, 0)`;
+                    } else {
+                        specs.style.opacity = 0;
+                        specs.style.transform = `translate3d(-50%, 30px, 0)`;
+                    }
+                }
+                
+                requestAnimationFrame(updateScroll);
+            }
+            updateScroll();
+
+            const tabs = document.querySelectorAll('.feature-tab');
+            const cards = document.querySelectorAll('.feature-card');
+            const indicator = document.getElementById('tab-indicator');
+
+            tabs.forEach((tab, index) => {
+                tab.addEventListener('click', () => {
+                    tabs.forEach(t => t.querySelector('h3').classList.replace('text-black', 'text-gray-400'));
+                    tab.querySelector('h3').classList.replace('text-gray-400', 'text-black');
+
+                    indicator.style.transform = `translate3d(0, ${index * 72}px, 0)`; 
+
+                    cards.forEach((card, cardIndex) => {
+                        card.classList.remove('active', 'prev', 'next');
+                        if (cardIndex === index) card.classList.add('active');
+                        else if (cardIndex < index) card.classList.add('prev');
+                        else card.classList.add('next');
+                    });
+                });
+            });
+            tabs[0].querySelector('h3').classList.replace('text-gray-400', 'text-black');
+        });
+    </script>
+</body>
+</html>
